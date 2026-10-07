@@ -4,15 +4,28 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>gustavvasas-pluggsida V2</title>
-  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@700&family=Raleway:wght@300&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@700&family=Raleway:wght@300;400&display=swap" rel="stylesheet"/>
   <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #111111;
+      --muted: #999999;
+      --line: #efefef;
+      --field-bg: #fafafa;
+      --field-border: #dddddd;
+      --placeholder: #bbbbbb;
+      --panel-bg: #ffffff;
+      --card-size: 180px;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #ffffff;
+      background: var(--bg);
       font-family: 'Raleway', sans-serif;
       min-height: 100vh;
       padding: 0 0 60px 0;
+      transition: background 0.2s;
     }
 
     /* ── HEADER ── */
@@ -30,7 +43,7 @@
       font-family: 'EB Garamond', serif;
       font-size: clamp(2rem, 5vw, 3.6rem);
       font-weight: 700;
-      color: #111;
+      color: var(--fg);
       letter-spacing: -0.5px;
       line-height: 1.1;
     }
@@ -40,44 +53,185 @@
       font-family: 'Raleway', sans-serif;
       font-weight: 300;
       font-size: 0.88rem;
-      color: #999;
+      color: var(--muted);
       letter-spacing: 0.01em;
     }
 
-    /* ── SEARCH ── */
-    .search-wrap {
+    /* ── SEARCH + SETTINGS BUTTON ── */
+    .tools {
       flex-shrink: 0;
       margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
     }
 
-    .search-wrap input {
+    .tools input[type="text"] {
       width: 220px;
       padding: 9px 16px;
-      border: 1.5px solid #ddd;
+      border: 1.5px solid var(--field-border);
       border-radius: 6px;
       font-family: 'Raleway', sans-serif;
       font-weight: 300;
       font-size: 0.85rem;
-      color: #333;
-      background: #fafafa;
+      color: var(--fg);
+      background: var(--field-bg);
       outline: none;
       transition: border-color 0.2s;
     }
 
-    .search-wrap input:focus { border-color: #aaa; background: #fff; }
-    .search-wrap input::placeholder { color: #bbb; }
+    .tools input[type="text"]:focus { border-color: var(--muted); }
+    .tools input[type="text"]::placeholder { color: var(--placeholder); }
+
+    .gear-btn {
+      width: 40px;
+      height: 40px;
+      border: 1.5px solid var(--field-border);
+      border-radius: 6px;
+      background: var(--field-bg);
+      font-size: 1.15rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.2s, transform 0.3s ease;
+    }
+
+    .gear-btn:hover { border-color: var(--muted); }
+    .gear-btn[aria-expanded="true"] { transform: rotate(60deg); border-color: var(--muted); }
+    .gear-btn:focus-visible, .reset-btn:focus-visible, .swatch:focus-visible {
+      outline: 2px solid var(--muted);
+      outline-offset: 2px;
+    }
+
+    /* ── SETTINGS PANEL ── */
+    .settings-panel {
+      position: absolute;
+      top: 50px;
+      right: 0;
+      width: 272px;
+      max-width: calc(100vw - 32px);
+      padding: 20px;
+      background: var(--panel-bg);
+      border: 1.5px solid var(--field-border);
+      border-radius: 12px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.14);
+      z-index: 10;
+      display: none;
+    }
+
+    .settings-panel.open { display: block; }
+
+    .settings-panel h2 {
+      font-family: 'EB Garamond', serif;
+      font-size: 1.2rem;
+      color: var(--fg);
+      margin-bottom: 14px;
+    }
+
+    .settings-panel label,
+    .field-label {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 400;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 16px 0 8px;
+    }
+
+    .field-label:first-of-type { margin-top: 0; }
+
+    #wheel {
+      display: block;
+      width: 180px;
+      height: 180px;
+      margin: 0 auto;
+      border-radius: 50%;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .wheel-wrap { position: relative; width: 180px; margin: 0 auto; }
+
+    #wheelDot {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      margin: -8px 0 0 -8px;
+      border-radius: 50%;
+      border: 2.5px solid #fff;
+      box-shadow: 0 0 0 1.5px rgba(0,0,0,0.5);
+      pointer-events: none;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 12px;
+      border-radius: 6px;
+      appearance: none;
+      -webkit-appearance: none;
+      background: #ddd;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #888;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #888;
+    }
+
+    #sizeRange { background: var(--field-border); }
+
+    .swatches { display: flex; gap: 10px; margin-top: 4px; }
+
+    .swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1.5px solid #bbb;
+      cursor: pointer;
+    }
+
+    .reset-btn {
+      margin-top: 18px;
+      width: 100%;
+      padding: 8px;
+      border: 1.5px solid var(--field-border);
+      border-radius: 6px;
+      background: transparent;
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.8rem;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .reset-btn:hover { border-color: var(--muted); }
 
     /* ── DIVIDER ── */
     .divider {
       height: 1px;
-      background: #efefef;
+      background: var(--line);
       margin: 0 48px 40px 48px;
     }
 
     /* ── GAME GRID ── */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--card-size), 1fr));
       gap: 32px 28px;
       padding: 0 48px;
     }
@@ -126,7 +280,7 @@
       font-family: 'Raleway', sans-serif;
       font-weight: 300;
       font-size: 0.82rem;
-      color: #999;
+      color: var(--muted);
       text-align: center;
       letter-spacing: 0.02em;
     }
@@ -138,15 +292,20 @@
       font-family: 'Raleway', sans-serif;
       font-weight: 300;
       font-size: 0.9rem;
-      color: #ccc;
+      color: var(--placeholder);
       padding: 60px 0;
     }
 
     @media (max-width: 600px) {
       header { flex-direction: column; padding: 32px 24px 24px; }
-      .search-wrap input { width: 100%; }
+      .tools { width: 100%; }
+      .tools input[type="text"] { flex: 1; width: auto; min-width: 0; }
       .grid { padding: 0 24px; gap: 24px 20px; }
       .divider { margin: 0 24px 28px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
     }
   </style>
 </head>
@@ -157,8 +316,32 @@
       <h1>gustavvasas-pluggsida V2</h1>
       <p class="description">Om problem upstår kontakta: max.nydahl@edu.lomma.se</p>
     </div>
-    <div class="search-wrap">
+    <div class="tools">
       <input type="text" id="searchInput" placeholder="Sök spel..." />
+      <button class="gear-btn" id="gearBtn" type="button" aria-label="Inställningar" aria-expanded="false" aria-controls="settingsPanel">⚙️</button>
+
+      <div class="settings-panel" id="settingsPanel" role="dialog" aria-label="Inställningar">
+        <h2>Inställningar</h2>
+
+        <div class="field-label"><span>Bakgrundsfärg</span></div>
+        <div class="wheel-wrap">
+          <canvas id="wheel" width="360" height="360"></canvas>
+          <div id="wheelDot"></div>
+        </div>
+
+        <div class="field-label"><span>Svart till vit</span></div>
+        <input type="range" id="lightRange" min="0" max="100" value="100" />
+
+        <div class="swatches">
+          <button class="swatch" type="button" id="swWhite" style="background:#fff" aria-label="Vit"></button>
+          <button class="swatch" type="button" id="swBlack" style="background:#000" aria-label="Svart"></button>
+        </div>
+
+        <label for="sizeRange"><span>Ikonstorlek</span><span id="sizeValue">180 px</span></label>
+        <input type="range" id="sizeRange" min="110" max="320" step="10" value="180" />
+
+        <button class="reset-btn" type="button" id="resetBtn">Återställ</button>
+      </div>
     </div>
   </header>
 
@@ -302,6 +485,156 @@
 
     searchInput.addEventListener('input', () => renderGames(searchInput.value));
     renderGames();
+
+    // ============================================================
+    //  INSTÄLLNINGAR
+    // ============================================================
+    const DEFAULTS = { h: 0, s: 0, l: 100, size: 180 };
+    let settings = Object.assign({}, DEFAULTS);
+
+    try {
+      const saved = JSON.parse(localStorage.getItem('pluggsida-settings'));
+      if (saved) settings = Object.assign({}, DEFAULTS, saved);
+    } catch (e) {}
+
+    const gearBtn    = document.getElementById('gearBtn');
+    const panel      = document.getElementById('settingsPanel');
+    const wheel      = document.getElementById('wheel');
+    const wheelDot   = document.getElementById('wheelDot');
+    const lightRange = document.getElementById('lightRange');
+    const sizeRange  = document.getElementById('sizeRange');
+    const sizeValue  = document.getElementById('sizeValue');
+    const root       = document.documentElement;
+    const WHEEL_PX   = 180; // visuell storlek (canvas är 2x för skärpa)
+
+    // Rita färghjulet: vinkel = färgton, avstånd från mitten = mättnad
+    (function drawWheel() {
+      const ctx = wheel.getContext('2d');
+      const size = wheel.width, r = size / 2;
+      const img = ctx.createImageData(size, size);
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const dx = x - r + 0.5, dy = y - r + 0.5;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const i = (y * size + x) * 4;
+          if (dist > r) { img.data[i + 3] = 0; continue; }
+          const hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+          const [R, G, B] = hslToRgb(hue, dist / r, 0.5);
+          img.data[i] = R; img.data[i + 1] = G; img.data[i + 2] = B;
+          img.data[i + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    })();
+
+    function hslToRgb(h, s, l) {
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+      const m = l - c / 2;
+      let r = 0, g = 0, b = 0;
+      if (h < 60)       { r = c; g = x; }
+      else if (h < 120) { r = x; g = c; }
+      else if (h < 180) { g = c; b = x; }
+      else if (h < 240) { g = x; b = c; }
+      else if (h < 300) { r = x; b = c; }
+      else              { r = c; b = x; }
+      return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+    }
+
+    function applySettings() {
+      const { h, s, l, size } = settings;
+      const dark = l < 50;
+
+      root.style.setProperty('--bg', `hsl(${h}, ${s}%, ${l}%)`);
+      root.style.setProperty('--card-size', size + 'px');
+
+      // Anpassa textfärger så de syns på mörk/ljus bakgrund
+      root.style.setProperty('--fg',           dark ? '#f5f5f5' : '#111111');
+      root.style.setProperty('--muted',        dark ? '#b5b5b5' : '#777777');
+      root.style.setProperty('--line',         dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)');
+      root.style.setProperty('--field-bg',     dark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.7)');
+      root.style.setProperty('--field-border', dark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.16)');
+      root.style.setProperty('--placeholder',  dark ? '#999999' : '#aaaaaa');
+      root.style.setProperty('--panel-bg',     dark ? '#222222' : '#ffffff');
+
+      // Reglage: svart → vald färg → vit
+      lightRange.style.background =
+        `linear-gradient(to right, #000, hsl(${h}, ${s}%, 50%), #fff)`;
+      lightRange.value = l;
+
+      sizeRange.value = size;
+      sizeValue.textContent = size + ' px';
+
+      // Placera pricken på hjulet
+      const rad = h * Math.PI / 180, dist = (s / 100) * (WHEEL_PX / 2);
+      wheelDot.style.left = (WHEEL_PX / 2 + Math.cos(rad) * dist) + 'px';
+      wheelDot.style.top  = (WHEEL_PX / 2 + Math.sin(rad) * dist) + 'px';
+
+      try { localStorage.setItem('pluggsida-settings', JSON.stringify(settings)); } catch (e) {}
+    }
+
+    // Välj färg på hjulet
+    function pickFromWheel(e) {
+      const rect = wheel.getBoundingClientRect();
+      const dx = e.clientX - (rect.left + rect.width / 2);
+      const dy = e.clientY - (rect.top + rect.height / 2);
+      const radius = rect.width / 2;
+      const dist = Math.min(Math.sqrt(dx * dx + dy * dy), radius);
+      settings.h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+      settings.s = Math.round((dist / radius) * 100);
+      // Om man står på vit/svart och väljer färg: gå till mitten-ljusstyrka
+      if (settings.l === 0 || settings.l === 100) settings.l = 50;
+      applySettings();
+    }
+
+    let dragging = false;
+    wheel.addEventListener('pointerdown', e => {
+      dragging = true;
+      wheel.setPointerCapture(e.pointerId);
+      pickFromWheel(e);
+    });
+    wheel.addEventListener('pointermove', e => { if (dragging) pickFromWheel(e); });
+    wheel.addEventListener('pointerup',     () => { dragging = false; });
+    wheel.addEventListener('pointercancel', () => { dragging = false; });
+
+    lightRange.addEventListener('input', () => {
+      settings.l = Number(lightRange.value);
+      applySettings();
+    });
+
+    sizeRange.addEventListener('input', () => {
+      settings.size = Number(sizeRange.value);
+      applySettings();
+    });
+
+    document.getElementById('swWhite').addEventListener('click', () => {
+      settings.h = 0; settings.s = 0; settings.l = 100;
+      applySettings();
+    });
+    document.getElementById('swBlack').addEventListener('click', () => {
+      settings.h = 0; settings.s = 0; settings.l = 0;
+      applySettings();
+    });
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      settings = Object.assign({}, DEFAULTS);
+      applySettings();
+    });
+
+    // Öppna / stäng panelen
+    function setPanel(open) {
+      panel.classList.toggle('open', open);
+      gearBtn.setAttribute('aria-expanded', String(open));
+    }
+
+    gearBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      setPanel(!panel.classList.contains('open'));
+    });
+    panel.addEventListener('click', e => e.stopPropagation());
+    document.addEventListener('click', () => setPanel(false));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') setPanel(false); });
+
+    applySettings();
   </script>
 </body>
 </html>
