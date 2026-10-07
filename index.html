@@ -16,6 +16,7 @@
       --placeholder: #bbbbbb;
       --panel-bg: #ffffff;
       --card-size: 180px;
+      --t: 0.45s; /* hur lång färgövergången är */
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,7 +26,7 @@
       font-family: 'Raleway', sans-serif;
       min-height: 100vh;
       padding: 0 0 60px 0;
-      transition: background 0.2s;
+      transition: background-color var(--t) ease;
     }
 
     /* ── HEADER ── */
@@ -78,7 +79,7 @@
       color: var(--fg);
       background: var(--field-bg);
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color var(--t) ease, background-color var(--t) ease, color var(--t) ease;
     }
 
     .tools input[type="text"]:focus { border-color: var(--muted); }
@@ -96,11 +97,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: border-color 0.2s, transform 0.3s ease;
+      transition: border-color var(--t) ease, background-color var(--t) ease,
+                  transform 0.5s cubic-bezier(0.3, 1.5, 0.5, 1);
     }
 
     .gear-btn:hover { border-color: var(--muted); }
-    .gear-btn[aria-expanded="true"] { transform: rotate(60deg); border-color: var(--muted); }
+    .gear-btn[aria-expanded="true"] { transform: rotate(90deg); border-color: var(--muted); }
     .gear-btn:focus-visible, .reset-btn:focus-visible, .swatch:focus-visible {
       outline: 2px solid var(--muted);
       outline-offset: 2px;
@@ -119,10 +121,27 @@
       border-radius: 12px;
       box-shadow: 0 12px 40px rgba(0,0,0,0.14);
       z-index: 10;
-      display: none;
+
+      /* stängd: osynlig, men kvar i layouten så den kan animeras */
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(-8px) scale(0.96);
+      transform-origin: top right;
+      transition: opacity 0.2s ease,
+                  transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+                  visibility 0s linear 0.3s,
+                  background-color var(--t) ease,
+                  border-color var(--t) ease;
     }
 
-    .settings-panel.open { display: block; }
+    .settings-panel.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: none;
+      transition-delay: 0s, 0s, 0s, 0s, 0s;
+    }
 
     .settings-panel h2 {
       font-family: 'EB Garamond', serif;
@@ -278,11 +297,14 @@
     .game-title {
       margin-top: 10px;
       font-family: 'Raleway', sans-serif;
-      font-weight: 300;
-      font-size: 0.82rem;
+      font-weight: 400;
+      font-size: var(--title-size, 0.82rem);
       color: var(--muted);
       text-align: center;
       letter-spacing: 0.02em;
+      line-height: 1.3;
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }
 
     /* ── NO RESULTS ── */
@@ -304,8 +326,50 @@
       .divider { margin: 0 24px 28px; }
     }
 
+    /* ── ANIMATIONER ── */
+
+    /* Kort övergång medan man drar i hjulet/reglage, och ingen alls vid sidladdning */
+    :root.dragging { --t: 0.06s; }
+    :root.booting  { --t: 0s; }
+
+    /* Texter och linjer byter färg mjukt (och spelnamnen växer/krymper mjukt) */
+    h1, .description, .game-title, .no-results, .divider,
+    .settings-panel h2, .settings-panel label, .field-label, .reset-btn {
+      transition-property: color, background-color, border-color, font-size;
+      transition-duration: var(--t);
+      transition-timing-function: ease;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(16px) scale(0.97); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    @keyframes fade {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    @keyframes draw {
+      from { transform: scaleX(0); }
+      to   { transform: scaleX(1); }
+    }
+
+    /* Vid sidladdning: rubrik, sök, linje och sedan spelen en efter en */
+    .header-text { animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .tools       { animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.12s both; }
+    .divider     { animation: draw 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s both; transform-origin: left; }
+
+    .game-card.enter {
+      animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      animation-delay: calc(min(var(--i, 0), 20) * 55ms + 300ms);
+    }
+
+    /* Vid sökning: träffarna tonas in snabbt */
+    .game-card.fade { animation: fade 0.25s ease both; }
+
     @media (prefers-reduced-motion: reduce) {
-      * { transition: none !important; }
+      * { transition: none !important; animation: none !important; }
     }
   </style>
 </head>
@@ -436,13 +500,15 @@
        {
         title: "Mouse Quest",
         url:   "https://kevinsurstromming-dev.github.io/musspel/",
-        image: "images/Untitled design.png"
+        image: "images/untitled design.png"
       },
     ];
     // ============================================================
 
     const grid        = document.getElementById('gameGrid');
     const searchInput = document.getElementById('searchInput');
+
+    let firstRender = true; // bara första visningen får den "stegvisa" intoningen
 
     function renderGames(filter) {
       const q = (filter || '').toLowerCase();
@@ -454,9 +520,10 @@
         return;
       }
 
-      filtered.forEach(game => {
+      filtered.forEach((game, idx) => {
         const a = document.createElement('a');
-        a.className   = 'game-card';
+        a.className   = firstRender ? 'game-card enter' : 'game-card fade';
+        a.style.setProperty('--i', idx);
         a.href        = game.url;
         a.target      = '_blank';
         a.rel         = 'noopener noreferrer';
@@ -481,6 +548,8 @@
         a.appendChild(label);
         grid.appendChild(a);
       });
+
+      firstRender = false;
     }
 
     searchInput.addEventListener('input', () => renderGames(searchInput.value));
@@ -543,18 +612,29 @@
 
     function applySettings() {
       const { h, s, l, size } = settings;
-      const dark = l < 50;
+      // Räkna ut bakgrundens faktiska ljushet (inte bara reglaget),
+      // så att t.ex. gult får mörk text och mörkblått får ljus text
+      const [R, G, B] = hslToRgb(h, s / 100, l / 100).map(v => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      });
+      const lum  = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+      const dark = lum < 0.179; // ljus text ger bäst kontrast under denna nivå
 
       root.style.setProperty('--bg', `hsl(${h}, ${s}%, ${l}%)`);
       root.style.setProperty('--card-size', size + 'px');
 
-      // Anpassa textfärger så de syns på mörk/ljus bakgrund
-      root.style.setProperty('--fg',           dark ? '#f5f5f5' : '#111111');
-      root.style.setProperty('--muted',        dark ? '#b5b5b5' : '#777777');
-      root.style.setProperty('--line',         dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)');
-      root.style.setProperty('--field-bg',     dark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.7)');
-      root.style.setProperty('--field-border', dark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.16)');
-      root.style.setProperty('--placeholder',  dark ? '#999999' : '#aaaaaa');
+      // Textstorlek följer ikonstorleken (0.82rem vid 180 px)
+      const titleSize = Math.max(0.7, Math.min(1.4, 0.82 * size / 180));
+      root.style.setProperty('--title-size', titleSize.toFixed(2) + 'rem');
+
+      // Anpassa textfärger så de syns på bakgrunden
+      root.style.setProperty('--fg',           dark ? '#ffffff' : '#111111');
+      root.style.setProperty('--muted',        dark ? 'rgba(255,255,255,0.82)' : 'rgba(0,0,0,0.68)');
+      root.style.setProperty('--line',         dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)');
+      root.style.setProperty('--field-bg',     dark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.7)');
+      root.style.setProperty('--field-border', dark ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.2)');
+      root.style.setProperty('--placeholder',  dark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)');
       root.style.setProperty('--panel-bg',     dark ? '#222222' : '#ffffff');
 
       // Reglage: svart → vald färg → vit
@@ -634,7 +714,15 @@
     document.addEventListener('click', () => setPanel(false));
     document.addEventListener('keydown', e => { if (e.key === 'Escape') setPanel(false); });
 
+    // Medan man drar i hjulet eller ett reglage följer färgen direkt (ingen släpning)
+    panel.addEventListener('pointerdown', () => root.classList.add('dragging'));
+    document.addEventListener('pointerup',     () => root.classList.remove('dragging'));
+    document.addEventListener('pointercancel', () => root.classList.remove('dragging'));
+
+    // Sparade färger sätts utan övergång vid sidladdning, så ingen vit blixt syns
+    root.classList.add('booting');
     applySettings();
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('booting')));
   </script>
 </body>
 </html>
