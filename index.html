@@ -30,7 +30,10 @@
     }
 
     /* ── HEADER ── */
+    /* FIX: headern ligger över spelkorten, så inställningspanelen aldrig hamnar bakom dem */
     header {
+      position: relative;
+      z-index: 1000;
       padding: 48px 48px 32px 48px;
       display: flex;
       align-items: flex-start;
@@ -120,7 +123,7 @@
       border: 1.5px solid var(--field-border);
       border-radius: 12px;
       box-shadow: 0 12px 40px rgba(0,0,0,0.14);
-      z-index: 10;
+      z-index: 1001;
 
       /* stängd: osynlig, men kvar i layouten så den kan animeras */
       opacity: 0;
@@ -162,19 +165,25 @@
 
     .field-label:first-of-type { margin-top: 0; }
 
-    #wheel {
-      display: block;
-      width: 180px;
-      height: 180px;
+    /* ── FÄRGKVADRAT ── */
+    .sv-wrap {
+      position: relative;
+      width: 224px;
+      max-width: 100%;
+      aspect-ratio: 1 / 1;
       margin: 0 auto;
-      border-radius: 50%;
+    }
+
+    #sv {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
       cursor: crosshair;
       touch-action: none;
     }
 
-    .wheel-wrap { position: relative; width: 180px; margin: 0 auto; }
-
-    #wheelDot {
+    #svDot {
       position: absolute;
       width: 16px;
       height: 16px;
@@ -213,9 +222,14 @@
       border: 2px solid #888;
     }
 
+    #hueRange {
+      background: linear-gradient(to right,
+        #f00 0%, #ff0 16.66%, #0f0 33.33%, #0ff 50%, #00f 66.66%, #f0f 83.33%, #f00 100%);
+    }
+
     #sizeRange { background: var(--field-border); }
 
-    .swatches { display: flex; gap: 10px; margin-top: 4px; }
+    .swatches { display: flex; gap: 10px; margin-top: 14px; }
 
     .swatch {
       width: 28px;
@@ -229,16 +243,16 @@
       margin-top: 18px;
       width: 100%;
       padding: 8px;
-      border: 1.5px solid var(--field-border);
+      border: none;
       border-radius: 6px;
       background: transparent;
       font-family: 'Raleway', sans-serif;
       font-size: 0.8rem;
-      color: var(--muted);
+      color: var(--fg);
       cursor: pointer;
     }
 
-    .reset-btn:hover { border-color: var(--muted); }
+    .reset-btn:hover { text-decoration: underline; }
 
     /* ── DIVIDER ── */
     .divider {
@@ -322,13 +336,14 @@
       header { flex-direction: column; padding: 32px 24px 24px; }
       .tools { width: 100%; }
       .tools input[type="text"] { flex: 1; width: auto; min-width: 0; }
+      .settings-panel { right: 0; }
       .grid { padding: 0 24px; gap: 24px 20px; }
       .divider { margin: 0 24px 28px; }
     }
 
     /* ── ANIMATIONER ── */
 
-    /* Kort övergång medan man drar i hjulet/reglage, och ingen alls vid sidladdning */
+    /* Kort övergång medan man drar i kvadraten/reglage, och ingen alls vid sidladdning */
     :root.dragging { --t: 0.06s; }
     :root.booting  { --t: 0s; }
 
@@ -388,13 +403,13 @@
         <h2>Inställningar</h2>
 
         <div class="field-label"><span>Bakgrundsfärg</span></div>
-        <div class="wheel-wrap">
-          <canvas id="wheel" width="360" height="360"></canvas>
-          <div id="wheelDot"></div>
+        <div class="sv-wrap">
+          <canvas id="sv" width="448" height="448"></canvas>
+          <div id="svDot"></div>
         </div>
 
-        <div class="field-label"><span>Svart till vit</span></div>
-        <input type="range" id="lightRange" min="0" max="100" value="100" />
+        <div class="field-label"><span>Nyans</span></div>
+        <input type="range" id="hueRange" min="0" max="360" value="0" />
 
         <div class="swatches">
           <button class="swatch" type="button" id="swWhite" style="background:#fff" aria-label="Vit"></button>
@@ -557,49 +572,42 @@
 
     // ============================================================
     //  INSTÄLLNINGAR
+    //  Färg lagras som HSV: h = nyans (0–360), s = mättnad (0–100), v = ljusstyrka (0–100)
+    //  Kvadraten: åt höger = mer färg, uppåt = ljusare.
+    //  Övre vänstra hörnet = vit, hela nedre kanten = svart.
     // ============================================================
-    const DEFAULTS = { h: 0, s: 0, l: 100, size: 180 };
+    const DEFAULTS = { h: 0, s: 0, v: 100, size: 180 };
     let settings = Object.assign({}, DEFAULTS);
 
     try {
       const saved = JSON.parse(localStorage.getItem('pluggsida-settings'));
-      if (saved) settings = Object.assign({}, DEFAULTS, saved);
+      if (saved) {
+        // Gamla sparade inställningar använde HSL – räkna om dem till HSV
+        if (saved.v === undefined && saved.l !== undefined) {
+          const sl = (saved.s || 0) / 100, l = saved.l / 100;
+          const v = l + sl * Math.min(l, 1 - l);
+          saved.v = Math.round(v * 100);
+          saved.s = v === 0 ? 0 : Math.round(2 * (1 - l / v) * 100);
+          delete saved.l;
+        }
+        settings = Object.assign({}, DEFAULTS, saved);
+      }
     } catch (e) {}
 
-    const gearBtn    = document.getElementById('gearBtn');
-    const panel      = document.getElementById('settingsPanel');
-    const wheel      = document.getElementById('wheel');
-    const wheelDot   = document.getElementById('wheelDot');
-    const lightRange = document.getElementById('lightRange');
-    const sizeRange  = document.getElementById('sizeRange');
-    const sizeValue  = document.getElementById('sizeValue');
-    const root       = document.documentElement;
-    const WHEEL_PX   = 180; // visuell storlek (canvas är 2x för skärpa)
+    const gearBtn   = document.getElementById('gearBtn');
+    const panel     = document.getElementById('settingsPanel');
+    const sv        = document.getElementById('sv');
+    const svDot     = document.getElementById('svDot');
+    const hueRange  = document.getElementById('hueRange');
+    const sizeRange = document.getElementById('sizeRange');
+    const sizeValue = document.getElementById('sizeValue');
+    const root      = document.documentElement;
 
-    // Rita färghjulet: vinkel = färgton, avstånd från mitten = mättnad
-    (function drawWheel() {
-      const ctx = wheel.getContext('2d');
-      const size = wheel.width, r = size / 2;
-      const img = ctx.createImageData(size, size);
-      for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-          const dx = x - r + 0.5, dy = y - r + 0.5;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const i = (y * size + x) * 4;
-          if (dist > r) { img.data[i + 3] = 0; continue; }
-          const hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
-          const [R, G, B] = hslToRgb(hue, dist / r, 0.5);
-          img.data[i] = R; img.data[i + 1] = G; img.data[i + 2] = B;
-          img.data[i + 3] = 255;
-        }
-      }
-      ctx.putImageData(img, 0, 0);
-    })();
-
-    function hslToRgb(h, s, l) {
-      const c = (1 - Math.abs(2 * l - 1)) * s;
+    function hsvToRgb(h, s, v) {
+      s /= 100; v /= 100;
+      const c = v * s;
       const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-      const m = l - c / 2;
+      const m = v - c;
       let r = 0, g = 0, b = 0;
       if (h < 60)       { r = c; g = x; }
       else if (h < 120) { r = x; g = c; }
@@ -610,25 +618,48 @@
       return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
     }
 
-    function applySettings() {
-      const { h, s, l, size } = settings;
-      // Räkna ut bakgrundens faktiska ljushet (inte bara reglaget),
-      // så att t.ex. gult får mörk text och mörkblått får ljus text
-      const [R, G, B] = hslToRgb(h, s / 100, l / 100).map(v => {
-        v /= 255;
-        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-      });
-      const lum  = 0.2126 * R + 0.7152 * G + 0.0722 * B;
-      const dark = lum < 0.179; // ljus text ger bäst kontrast under denna nivå
+    // Rita färgkvadraten för vald nyans: vit → färg (vågrätt), sedan genomskinlig → svart (lodrätt)
+    function drawSquare() {
+      const ctx = sv.getContext('2d');
+      const w = sv.width, h = sv.height;
+      const [R, G, B] = hsvToRgb(settings.h, 100, 100);
+      ctx.fillStyle = `rgb(${R},${G},${B})`;
+      ctx.fillRect(0, 0, w, h);
 
-      root.style.setProperty('--bg', `hsl(${h}, ${s}%, ${l}%)`);
+      const white = ctx.createLinearGradient(0, 0, w, 0);
+      white.addColorStop(0, '#fff');
+      white.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = white;
+      ctx.fillRect(0, 0, w, h);
+
+      const black = ctx.createLinearGradient(0, 0, 0, h);
+      black.addColorStop(0, 'rgba(0,0,0,0)');
+      black.addColorStop(1, '#000');
+      ctx.fillStyle = black;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    let lastDrawnHue = null;
+
+    function applySettings() {
+      const { h, s, v, size } = settings;
+      const [R, G, B] = hsvToRgb(h, s, v);
+
+      // Bakgrundens faktiska ljushet, så att text alltid syns (svart bg → vit text osv.)
+      const lin = [R, G, B].map(c => {
+        c /= 255;
+        return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      });
+      const lum  = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+      const dark = lum < 0.179;
+
+      root.style.setProperty('--bg', `rgb(${R}, ${G}, ${B})`);
       root.style.setProperty('--card-size', size + 'px');
 
       // Textstorlek följer ikonstorleken (0.82rem vid 180 px)
       const titleSize = Math.max(0.7, Math.min(1.4, 0.82 * size / 180));
       root.style.setProperty('--title-size', titleSize.toFixed(2) + 'rem');
 
-      // Anpassa textfärger så de syns på bakgrunden
       root.style.setProperty('--fg',           dark ? '#ffffff' : '#111111');
       root.style.setProperty('--muted',        dark ? 'rgba(255,255,255,0.82)' : 'rgba(0,0,0,0.68)');
       root.style.setProperty('--line',         dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)');
@@ -637,48 +668,45 @@
       root.style.setProperty('--placeholder',  dark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)');
       root.style.setProperty('--panel-bg',     dark ? '#222222' : '#ffffff');
 
-      // Reglage: svart → vald färg → vit
-      lightRange.style.background =
-        `linear-gradient(to right, #000, hsl(${h}, ${s}%, 50%), #fff)`;
-      lightRange.value = l;
+      // Rita om kvadraten bara när nyansen ändrats
+      if (lastDrawnHue !== h) { drawSquare(); lastDrawnHue = h; }
 
+      hueRange.value = h;
       sizeRange.value = size;
       sizeValue.textContent = size + ' px';
 
-      // Placera pricken på hjulet
-      const rad = h * Math.PI / 180, dist = (s / 100) * (WHEEL_PX / 2);
-      wheelDot.style.left = (WHEEL_PX / 2 + Math.cos(rad) * dist) + 'px';
-      wheelDot.style.top  = (WHEEL_PX / 2 + Math.sin(rad) * dist) + 'px';
+      // Placera pricken i kvadraten (i procent, så den följer med om kvadraten skalas)
+      svDot.style.left = s + '%';
+      svDot.style.top  = (100 - v) + '%';
 
       try { localStorage.setItem('pluggsida-settings', JSON.stringify(settings)); } catch (e) {}
     }
 
-    // Välj färg på hjulet
-    function pickFromWheel(e) {
-      const rect = wheel.getBoundingClientRect();
-      const dx = e.clientX - (rect.left + rect.width / 2);
-      const dy = e.clientY - (rect.top + rect.height / 2);
-      const radius = rect.width / 2;
-      const dist = Math.min(Math.sqrt(dx * dx + dy * dy), radius);
-      settings.h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
-      settings.s = Math.round((dist / radius) * 100);
-      // Om man står på vit/svart och väljer färg: gå till mitten-ljusstyrka
-      if (settings.l === 0 || settings.l === 100) settings.l = 50;
+    // Välj färg i kvadraten
+    function pickFromSquare(e) {
+      const rect = sv.getBoundingClientRect();
+      const x = Math.max(0, Math.min(rect.width,  e.clientX - rect.left));
+      const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+      settings.s = Math.round((x / rect.width) * 100);
+      settings.v = Math.round((1 - y / rect.height) * 100);
       applySettings();
     }
 
     let dragging = false;
-    wheel.addEventListener('pointerdown', e => {
+    sv.addEventListener('pointerdown', e => {
       dragging = true;
-      wheel.setPointerCapture(e.pointerId);
-      pickFromWheel(e);
+      sv.setPointerCapture(e.pointerId);
+      pickFromSquare(e);
     });
-    wheel.addEventListener('pointermove', e => { if (dragging) pickFromWheel(e); });
-    wheel.addEventListener('pointerup',     () => { dragging = false; });
-    wheel.addEventListener('pointercancel', () => { dragging = false; });
+    sv.addEventListener('pointermove', e => { if (dragging) pickFromSquare(e); });
+    sv.addEventListener('pointerup',     () => { dragging = false; });
+    sv.addEventListener('pointercancel', () => { dragging = false; });
 
-    lightRange.addEventListener('input', () => {
-      settings.l = Number(lightRange.value);
+    hueRange.addEventListener('input', () => {
+      settings.h = Number(hueRange.value);
+      // Om man står på ren vit/svart och drar nyansen: ge lite färg så man ser skillnad
+      if (settings.s === 0) settings.s = 100;
+      if (settings.v === 0) settings.v = 100;
       applySettings();
     });
 
@@ -688,11 +716,11 @@
     });
 
     document.getElementById('swWhite').addEventListener('click', () => {
-      settings.h = 0; settings.s = 0; settings.l = 100;
+      settings.s = 0; settings.v = 100;
       applySettings();
     });
     document.getElementById('swBlack').addEventListener('click', () => {
-      settings.h = 0; settings.s = 0; settings.l = 0;
+      settings.s = 0; settings.v = 0;
       applySettings();
     });
     document.getElementById('resetBtn').addEventListener('click', () => {
@@ -714,7 +742,7 @@
     document.addEventListener('click', () => setPanel(false));
     document.addEventListener('keydown', e => { if (e.key === 'Escape') setPanel(false); });
 
-    // Medan man drar i hjulet eller ett reglage följer färgen direkt (ingen släpning)
+    // Medan man drar i kvadraten eller ett reglage följer färgen direkt (ingen släpning)
     panel.addEventListener('pointerdown', () => root.classList.add('dragging'));
     document.addEventListener('pointerup',     () => root.classList.remove('dragging'));
     document.addEventListener('pointercancel', () => root.classList.remove('dragging'));
